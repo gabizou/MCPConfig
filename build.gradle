@@ -16,6 +16,8 @@ buildscript {
     }
 }
 
+import de.oceanlabs.mcpconfig.task.MCInjectorTask
+import de.oceanlabs.mcpconfig.task.RemapJarTask
 import de.undercouch.gradle.tasks.download.Download
 import groovy.io.FileType
 import groovy.json.JsonSlurper
@@ -265,17 +267,17 @@ subprojects {
         dest file(PATH_CACHED_VERSION + project.version + '.joined.jar')
     }
 
-    task renameClient(type: RemapJarSpecialSource, dependsOn: [downloadLibraries, filterClient]) {
+    task renameClient(type: RemapJarTask, dependsOn: [downloadLibraries, filterClient]) {
         input filterClient.archivePath
         mappings file(PATH_VERSION + 'joined.tsrg')
         dest file(PATH_CACHED_VERSION + project.version + '.client.mapped.jar')
     }
-    task renameServer(type: RemapJarSpecialSource, dependsOn: [downloadLibraries, filterServer]) {
+    task renameServer(type: RemapJarTask, dependsOn: [downloadLibraries, filterServer]) {
         input filterServer.archivePath
         mappings file(PATH_VERSION + 'joined.tsrg')
         dest file(PATH_CACHED_VERSION + project.version + '.server.mapped.jar')
     }
-    task renameJoined(type: RemapJarSpecialSource, dependsOn: [downloadLibraries, mergeJars]) {
+    task renameJoined(type: RemapJarTask, dependsOn: [downloadLibraries, mergeJars]) {
         input mergeJars.dest
         mappings file(PATH_VERSION + 'joined.tsrg')
         dest file(PATH_CACHED_VERSION + project.version + '.joined.mapped.jar')
@@ -490,59 +492,47 @@ subprojects {
         }
     }
 
-    task mcinjectClient(type: JavaExecOutput, dependsOn: [downloadMCInjector, renameClient, makeExceptions, fixAccessLevels]) {
+    task mcinjectClient(type: MCInjectorTask, dependsOn: [downloadMCInjector, renameClient, makeExceptions, fixAccessLevels]) {
+        jar downloadMCInjector.dest
         inputs.file(downloadMCInjector.dest)
         inputs.file(renameClient.dest)
         inputs.file(makeExceptions.dest)
-        dest file(PATH_CACHED_VERSION + project.version + '.client.mci.jar')
-        main = '-jar'
         standardOutput NULL_OUTPUT
-        doFirst {
-            args = [downloadMCInjector.dest.absolutePath] + project.fillVariables([
-                input: renameClient.dest.absolutePath, 
-                output: dest.absolutePath, 
-                log: PATH_CACHED_VERSION + project.version + '.client.mci.log',
-                exceptions: makeExceptions.dest.absolutePath,
-                access: fixAccessLevels.dest.absolutePath,
-                constructors: PATH_VERSION + 'constructors.txt'
-            ], MCINJECTOR.args)
-        }
+        args MCINJECTOR.args
+        access fixAccessLevels.dest
+        constructors file(PATH_VERSION + 'constructors.txt')
+        exceptions makeExceptions.dest
+        input renameClient.dest
+        output file(PATH_CACHED_VERSION + project.version + '.client.mci.jar')
+        log file(PATH_CACHED_VERSION + project.version + '.client.mci.log')
     }
-    task mcinjectServer(type: JavaExecOutput, dependsOn: [downloadMCInjector, renameServer, makeExceptions, fixAccessLevels]) {
+    task mcinjectServer(type: MCInjectorTask, dependsOn: [downloadMCInjector, renameServer, makeExceptions, fixAccessLevels]) {
+        jar downloadMCInjector.dest
         inputs.file(downloadMCInjector.dest)
         inputs.file(renameServer.dest)
         inputs.file(makeExceptions.dest)
-        dest file(PATH_CACHED_VERSION + project.version + '.server.mci.jar')
-        main = '-jar'
         standardOutput NULL_OUTPUT
-        doFirst {
-            args = [downloadMCInjector.dest.absolutePath] + project.fillVariables([
-                input: renameServer.dest.absolutePath, 
-                output: dest.absolutePath, 
-                log: PATH_CACHED_VERSION + project.version + '.server.mci.log',
-                exceptions: makeExceptions.dest.absolutePath,
-                access: fixAccessLevels.dest.absolutePath,
-                constructors: PATH_VERSION + 'constructors.txt'
-            ], MCINJECTOR.args)
-        }
+        args MCINJECTOR.args
+        access fixAccessLevels.dest
+        constructors file(PATH_VERSION + 'constructors.txt')
+        exceptions makeExceptions.dest
+        input renameServer.dest
+        output file(PATH_CACHED_VERSION + project.version + '.server.mci.jar')
+        log file(PATH_CACHED_VERSION + project.version + '.server.mci.log')
     }
-    task mcinjectJoined(type: JavaExecOutput, dependsOn: [downloadMCInjector, renameJoined, makeExceptions, fixAccessLevels]) {
+    task mcinjectJoined(type: MCInjectorTask, dependsOn: [downloadMCInjector, renameJoined, makeExceptions, fixAccessLevels]) {
+        jar downloadMCInjector.dest
         inputs.file(downloadMCInjector.dest)
         inputs.file(renameJoined.dest)
         inputs.file(makeExceptions.dest)
-        dest file(PATH_CACHED_VERSION + project.version + '.joined.mci.jar')
-        main = '-jar'
         standardOutput NULL_OUTPUT
-        doFirst {
-            args = [downloadMCInjector.dest.absolutePath] + project.fillVariables([
-                input: renameJoined.dest.absolutePath, 
-                output: dest.absolutePath, 
-                log: PATH_CACHED_VERSION + project.version + '.joined.mci.log',
-                exceptions: makeExceptions.dest.absolutePath,
-                access: fixAccessLevels.dest.absolutePath,
-                constructors: PATH_VERSION + 'constructors.txt'
-            ], MCINJECTOR.args)
-        }
+        args MCINJECTOR.args
+        access fixAccessLevels.dest
+        constructors file(PATH_VERSION + 'constructors.txt')
+        exceptions makeExceptions.dest
+        input renameJoined.dest
+        output file(PATH_CACHED_VERSION + project.version + '.joined.mci.jar')
+        log file(PATH_CACHED_VERSION + project.version + '.joined.mci.log')
     }
     task mcinjectJars(dependsOn: [mcinjectClient, mcinjectServer, mcinjectJoined]){}
         
@@ -565,7 +555,7 @@ subprojects {
     }
     task fernflowerClient(type: JavaExecOutput, dependsOn: [downloadFernflower, mcinjectClient, fernflowerLibrariesClient]) {
         inputs.file(downloadFernflower.dest)
-        inputs.file(mcinjectClient.dest)
+        inputs.file(mcinjectClient.output)
         inputs.file(fernflowerLibrariesClient.dest)
         dest file(PATH_CACHED_VERSION + project.version + '.client.decomp.jar')
         main = '-jar'
@@ -580,7 +570,7 @@ subprojects {
     }
     task fernflowerServer(type: JavaExecOutput, dependsOn: [downloadFernflower, mcinjectServer, fernflowerLibrariesServer]) {
         inputs.file(downloadFernflower.dest)
-        inputs.file(mcinjectServer.dest)
+        inputs.file(mcinjectServer.output)
         inputs.file(fernflowerLibrariesServer.dest)
         dest file(PATH_CACHED_VERSION + project.version + '.server.decomp.jar')
         main = '-jar'
@@ -595,7 +585,7 @@ subprojects {
     }
     task fernflowerJoined(type: JavaExecOutput, dependsOn: [downloadFernflower, mcinjectJoined, fernflowerLibrariesClient]) { //We use client libraries because its joined and needs everything. AFAIK there arnt any server specific libraries
         inputs.file(downloadFernflower.dest)
-        inputs.file(mcinjectJoined.dest)
+        inputs.file(mcinjectJoined.output)
         inputs.file(fernflowerLibrariesClient.dest)
         dest file(PATH_CACHED_VERSION + project.version + '.joined.decomp.jar')
         main = '-jar'
@@ -1018,17 +1008,6 @@ class MergeJar extends DefaultTask {
     }
 }
 
-class RemapJarSpecialSource extends DefaultTask {
-    @InputFile File input
-    @InputFile File mappings
-    @OutputFile File dest
-    
-    @TaskAction
-    def doTask() {
-        String[] args = ['--in-jar', input.absolutePath, '--out-jar', dest.absolutePath, '--srg-in', mappings.absolutePath]
-        net.md_5.specialsource.SpecialSource.main(args)
-    }
-}
 class SingleOutput extends DefaultTask {
     @OutputFile File dest
 }

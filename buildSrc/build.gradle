@@ -6,6 +6,7 @@ repositories {
 dependencies {
     compile 'com.google.code.gson:gson:2.8.5'
     compile 'com.google.guava:guava:25.1-jre'
+    compile 'net.md-5:SpecialSource:1.8.3'
     compile 'org.ow2.asm:asm:6.1.1'
     compile 'org.ow2.asm:asm-tree:6.1.1'
 }
